@@ -1,67 +1,58 @@
 
 let canvas;
 let context;
-let mouse = {};
 let keyboard = [];
-let entities = [];
+let mouse = {};
+let particles = [];
+
+let timer = 0;
+let cooldown = 0.5;
 
 window.onload = init;
 window.onresize = resize;
 window.onkeydown = keydown;
 window.onkeyup = keyup;
+window.onmousemove = mousemove;
+window.onmouseup = mouseup;
+window.onmousedown = mousedown;
 
 function init() {
 	canvas = document.getElementById('viewport');
 	context = canvas.getContext('2d');
 	canvas.width = window.innerWidth;
 	canvas.height = window.innerHeight;
-	canvas.onmousemove = mousemove;
-	canvas.onmousedown = mousedown;
-	canvas.onmouseup = mouseup;
+
 	requestAnimationFrame(loop);
 }
-
-let timer = 0;
-let cooldown = 2;
 
 function loop() {
 	context.fillStyle = 'black';
 	context.clearRect(0, 0, canvas.width, canvas.height);
 	context.fillRect(0, 0, canvas.width, canvas.height);
 
-	timer += 1;
-	if (mouse.down && timer > cooldown) {
-		for (let i = 0; i < 360; i += 15) {
-			entities.push(new Particle(
-				mouse.x,
-				mouse.y,
-				10,
-				randi(1, 10),
-				radians(i),
-				[255, randi(0, 255), 0, 1],
-				randf(0.01, 0.1)
-			));
-		}
+	timer += 0.1;
+	if (timer > cooldown && mouse.down) {
+		rocket(mouse.x, mouse.y);
 		timer = 0;
 	}
 
-	entities.forEach((value, index, array) => {
-		value.update();
-		value.render(context);
+	for (var i = particles.length - 1; i >= 0; i--) {
+		let p = particles[i];
+		p.move();
+		p.draw(context);
+		p.color.a -= Math.random() * 0.01;
 
-		value.color[3] -= value.decay;
-		if (value.color[3] < 0) value.alive = false;
+		if (p.color.a < 0 ||
+			p.x + p.radius < 0 ||
+			p.y + p.radius < 0 ||
+			p.x - p.radius > canvas.width ||
+			p.y - p.radius > canvas.height) {
+			p.die()
+			particles.splice(i, 1);
+		}
+	}
 
-		if (value.x < 0) value.alive = false;
-		if (value.y < 0) value.alive = false;
-		if (value.x > canvas.width) value.alive = false;
-		if (value.y > canvas.height) value.alive = false;
-
-		if (!value.alive) array.splice(index, 1);
-	});
-	context.fillStyle = 'white';
-	context.font = '20px montserrat';
-	context.fillText('This is for you Peng <3', 15, canvas.height - 20);
+	// console.log(particles.length);
 	requestAnimationFrame(loop);
 }
 
@@ -91,66 +82,63 @@ function mouseup() {
 	mouse.down = false;
 }
 
-function randi(a, b) {
-	return Math.floor(Math.random() * (b - a) + a);
-}
-
-function randf(a, b) {
-	return Math.random() * (b - a) + a;
-}
-
-function str(color) {
-	return `rgb(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
-}
-
-function np() {
-	return Math.random() < 0.5 ? 1 : -1;
-}
-
 function radians(d) {
 	return d * (Math.PI / 180);
 }
 
-
-class Entity {
-	constructor (x, y, radius) {
-		this.x = x;
-		this.y = y;
-		this.radius = radius;
-		this.color = [255, 255, 255];
-		this.alive = true;
-	}
-
-	draw(c) {
-		c.fillStyle = str(this.color);
-		c.beginPath();
-		c.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
-		c.fill();
-	}
-
-	die() {}
+function randi(min, max) {  
+	return Math.random() * (max - min) + min; 
 }
 
-class Particle extends Entity {
-	constructor(x, y, radius, vel, theta, color, decay) {
-		super(x, y, radius);
-		this.vel = vel;
-		this.velX = Math.cos(theta) * this.vel;
-		this.velY = Math.sin(theta) * this.vel;
-		this.color = color;
-		this.decay = decay;
+function explosion(x, y, color) {
+	for (let i = 0; i < 360; i += 15) {
+		particles.push(new Snow.PolarParticle(
+			x,
+			y,
+			randi(5, 10),
+			new Snow.RGBAValue(
+				color.r,
+				color.g,
+				color.b,
+				1.0),
+			10,
+			i,
+		));
+	}
+}
+
+function rocket(x, y) {
+	particles.push(new Rocket(x, y));
+}
+
+class Rocket extends Snow.VectorParticle {
+	constructor(x, y) {
+		super(
+			x,
+			y,
+			10,
+			new Snow.RGBAValue(
+				255,
+				255,
+				255,
+				1.0),
+			0,
+			-1
+		);
 	}
 
 	move() {
+		this.color.a -= 0.02;
+		this.velY -= 0.4;
 		this.x += this.velX;
 		this.y += this.velY;
 	}
 
-	update() {
-		this.move();
-	}
-
-	render(c) {
-		this.draw(c);
+	die() {
+		explosion(this.x, this.y, new Snow.RGBValue(
+			randi(0, 255),
+			randi(0, 255),
+			randi(0, 255)
+		));
 	}
 }
